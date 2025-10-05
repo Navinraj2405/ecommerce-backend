@@ -1,24 +1,35 @@
- 
-const express = require('express');
+ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require("cors");
-require('dotenv').config(); 
+require('dotenv').config();
 
 const app = express();
 
+// ✅ Allowed Origins
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://navinraj2405.github.io",
+  "https://navinraj2405.github.io/ecommerce-frontend"
+];
+
+// ✅ CORS Configuration
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      console.log("❌ CORS blocked request from:", origin);
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true,
+}));
+
 // ✅ Middleware
-app.use(cors());
 app.use(express.json()); // replaces bodyParser.json()
 
-const corsOptions = {
-  origin: "https://navinraj2405.github.io/ecommerce-frontend/", // frontend URL
-};
-
-app.use(cors(corsOptions));
-
-
 // ✅ MongoDB Connection
- mongoose
+mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ MongoDB Connection Successful"))
   .catch((err) => console.error("❌ MongoDB Connection Error:", err));
@@ -63,6 +74,7 @@ app.get('/api/address', async (req, res) => {
     res.status(500).json({ message: err.message });
   }
 });
+
 // ✅ PUT Route (Update Address)
 app.put('/api/address/:id', async (req, res) => {
   try {
@@ -84,7 +96,7 @@ app.put('/api/address/:id', async (req, res) => {
   }
 });
 
-// ✅ Optional: DELETE Route
+// ✅ DELETE Route
 app.delete('/api/address/:id', async (req, res) => {
   try {
     await Address.findByIdAndDelete(req.params.id);
