@@ -11,7 +11,7 @@ app.use(cors());
 app.use(express.json()); // replaces bodyParser.json()
 
 const corsOptions = {
-  origin: "", // frontend URL
+  origin: "https://navinraj2405.github.io/ecommerce-frontend/", // frontend URL
 };
 
 app.use(cors(corsOptions));
