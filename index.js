@@ -9,7 +9,7 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "https://navinraj2405.github.io",
-  "https://navinraj2405.github.io/ecommerce-frontend"
+  "ecommerce-front-end-project.netlify.app"
 ];
 
 // ✅ CORS Configuration
