@@ -6,14 +6,14 @@ require('dotenv').config();
 
 const app = express();
 
-// ✅ Allowed Origins
+// ==================== CORS ====================
 const allowedOrigins = [
   "http://localhost:5173",
   "https://navinraj2405.github.io",
-  "https://ecommerce-front-end-project.netlify.app"
+  "https://ecommerce-front-end-project.netlify.app",
+  "https://onlineshoping-project.netlify.app"
 ];
 
-// ✅ CORS Configuration
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -26,17 +26,17 @@ app.use(cors({
   credentials: true,
 }));
 
-// ✅ Middleware
+// ==================== MIDDLEWARE ====================
 app.use(express.json());
 
-// ✅ MongoDB Connection
+// ==================== MONGODB ====================
 mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log("✅ MongoDB Connection Successful"))
+  .then(() => console.log("✅ MongoDB Connected"))
   .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
 // ==================== SCHEMAS ====================
 
-// ✅ Address Schema
+// Address Schema
 const addressSchema = new mongoose.Schema({
   newStreet: String,
   newLandmark: String,
@@ -44,21 +44,19 @@ const addressSchema = new mongoose.Schema({
   newAddress: String,
   newPincode: String,
   newCity: String,
-  userId: { type: String, required: true }, // tie to logged-in user
+  userId: { type: String, required: true } // tie to logged-in user
 });
-
 const Address = mongoose.model('Address', addressSchema);
 
-// ✅ Cart Item Schema
+// Cart Item Schema
 const cartItemSchema = new mongoose.Schema({
   productId: { type: String, required: true },
   title: String,
   price: Number,
   image: String,
   quantity: { type: Number, default: 1 },
-  userId: { type: String, required: true }, // tie to logged-in user
+  userId: { type: String, required: true } // tie to logged-in user
 });
-
 const CartItem = mongoose.model("CartItem", cartItemSchema);
 
 // ==================== ADDRESS ROUTES ====================
@@ -66,8 +64,10 @@ const CartItem = mongoose.model("CartItem", cartItemSchema);
 // POST: Add new address
 app.post('/api/address', async (req, res) => {
   const { newStreet, newLandmark, newArea, newAddress, newPincode, newCity, userId } = req.body;
-  const address = new Address({ newStreet, newLandmark, newArea, newAddress, newPincode, newCity, userId });
+  if (!userId) return res.status(400).json({ message: "userId is required" });
+
   try {
+    const address = new Address({ newStreet, newLandmark, newArea, newAddress, newPincode, newCity, userId });
     const saved = await address.save();
     res.status(201).json(saved);
   } catch (err) {
@@ -75,25 +75,25 @@ app.post('/api/address', async (req, res) => {
   }
 });
 
-// 
- // GET addresses for a specific user
+// GET: Fetch addresses for a specific user
 app.get('/api/address/:userId', async (req, res) => {
   try {
     const addresses = await Address.find({ userId: req.params.userId });
     res.json(addresses);
   } catch (err) {
+    console.error(err);
     res.status(500).json({ message: err.message });
   }
 });
 
-
- 
- // Update address
+// PUT: Update address (user-specific)
 app.put('/api/address/:id', async (req, res) => {
   const { userId, newStreet, newLandmark, newArea, newAddress, newPincode, newCity } = req.body;
+  if (!userId) return res.status(400).json({ message: "userId is required" });
+
   try {
     const updated = await Address.findOneAndUpdate(
-      { _id: req.params.id, userId }, // ensures only owner can update
+      { _id: req.params.id, userId },
       { newStreet, newLandmark, newArea, newAddress, newPincode, newCity },
       { new: true }
     );
@@ -104,10 +104,11 @@ app.put('/api/address/:id', async (req, res) => {
   }
 });
 
-
 // DELETE: Remove address (user-specific)
 app.delete('/api/address/:id', async (req, res) => {
   const { userId } = req.body;
+  if (!userId) return res.status(400).json({ message: "userId is required" });
+
   try {
     const deleted = await Address.findOneAndDelete({ _id: req.params.id, userId });
     if (!deleted) return res.status(404).json({ message: "Address not found or unauthorized" });
@@ -119,9 +120,11 @@ app.delete('/api/address/:id', async (req, res) => {
 
 // ==================== CART ROUTES ====================
 
-// POST: Add item to cart or update quantity if exists
+// POST: Add item to cart or update quantity
 app.post("/api/cart", async (req, res) => {
   const { productId, title, price, image, quantity, userId } = req.body;
+  if (!userId) return res.status(400).json({ message: "userId is required" });
+
   try {
     let existingItem = await CartItem.findOne({ productId, userId });
     if (existingItem) {
@@ -150,9 +153,11 @@ app.get("/api/cart/:userId", async (req, res) => {
 // PUT: Update cart item quantity (user-specific)
 app.put("/api/cart/:id", async (req, res) => {
   const { quantity, userId } = req.body;
+  if (!userId) return res.status(400).json({ message: "userId is required" });
+
   try {
     const updatedItem = await CartItem.findOneAndUpdate(
-      { _id: req.params.id, userId }, // ensure only owner can update
+      { _id: req.params.id, userId },
       { quantity },
       { new: true }
     );
@@ -163,9 +168,11 @@ app.put("/api/cart/:id", async (req, res) => {
   }
 });
 
-// DELETE: Remove item from cart (user-specific)
+// DELETE: Remove cart item (user-specific)
 app.delete("/api/cart/:id", async (req, res) => {
   const { userId } = req.body;
+  if (!userId) return res.status(400).json({ message: "userId is required" });
+
   try {
     const deleted = await CartItem.findOneAndDelete({ _id: req.params.id, userId });
     if (!deleted) return res.status(404).json({ message: "Cart item not found or unauthorized" });
