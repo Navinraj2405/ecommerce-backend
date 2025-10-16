@@ -1,4 +1,5 @@
- const express = require('express');
+ // server.js
+const express = require('express');
 const mongoose = require('mongoose');
 const cors = require("cors");
 require('dotenv').config();
@@ -9,7 +10,7 @@ const app = express();
 const allowedOrigins = [
   "http://localhost:5173",
   "https://navinraj2405.github.io",
-  "ecommerce-front-end-project.netlify.app"
+  "https://ecommerce-front-end-project.netlify.app"
 ];
 
 // ✅ CORS Configuration
@@ -26,15 +27,16 @@ app.use(cors({
 }));
 
 // ✅ Middleware
-app.use(express.json()); // replaces bodyParser.json()
+app.use(express.json());
 
 // ✅ MongoDB Connection
-mongoose
-  .connect(process.env.MONGODB_URI)
+mongoose.connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ MongoDB Connection Successful"))
-  .catch((err) => console.error("❌ MongoDB Connection Error:", err));
+  .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// ✅ Define Schema
+// ==================== SCHEMAS ====================
+
+// ✅ Address Schema
 const addressSchema = new mongoose.Schema({
   newStreet: String,
   newLandmark: String,
@@ -42,69 +44,137 @@ const addressSchema = new mongoose.Schema({
   newAddress: String,
   newPincode: String,
   newCity: String,
+  userId: { type: String, required: true }, // tie to logged-in user
 });
 
 const Address = mongoose.model('Address', addressSchema);
 
-// ✅ POST Route (Add Address)
-app.post('/api/address', async (req, res) => {
-  const address = new Address({
-    newStreet: req.body.newStreet,
-    newLandmark: req.body.newLandmark,
-    newArea: req.body.newArea,
-    newAddress: req.body.newAddress,
-    newPincode: req.body.newPincode,
-    newCity: req.body.newCity,
-  });
+// ✅ Cart Item Schema
+const cartItemSchema = new mongoose.Schema({
+  productId: { type: String, required: true },
+  title: String,
+  price: Number,
+  image: String,
+  quantity: { type: Number, default: 1 },
+  userId: { type: String, required: true }, // tie to logged-in user
+});
 
+const CartItem = mongoose.model("CartItem", cartItemSchema);
+
+// ==================== ADDRESS ROUTES ====================
+
+// POST: Add new address
+app.post('/api/address', async (req, res) => {
+  const { newStreet, newLandmark, newArea, newAddress, newPincode, newCity, userId } = req.body;
+  const address = new Address({ newStreet, newLandmark, newArea, newAddress, newPincode, newCity, userId });
   try {
-    const newAddress = await address.save();
-    res.status(201).json(newAddress);
+    const saved = await address.save();
+    res.status(201).json(saved);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// ✅ GET Route (Fetch All Addresses)
-app.get('/api/address', async (req, res) => {
+// 
+ // GET addresses for a specific user
+app.get('/api/address/:userId', async (req, res) => {
   try {
-    const addresses = await Address.find();
+    const addresses = await Address.find({ userId: req.params.userId });
     res.json(addresses);
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// ✅ PUT Route (Update Address)
+
+ 
+ // Update address
 app.put('/api/address/:id', async (req, res) => {
+  const { userId, newStreet, newLandmark, newArea, newAddress, newPincode, newCity } = req.body;
   try {
-    const updated = await Address.findByIdAndUpdate(
-      req.params.id,
-      {
-        newStreet: req.body.newStreet,
-        newLandmark: req.body.newLandmark,
-        newArea: req.body.newArea,
-        newAddress: req.body.newAddress,
-        newPincode: req.body.newPincode,
-        newCity: req.body.newCity,
-      },
-      { new: true } // return updated document
+    const updated = await Address.findOneAndUpdate(
+      { _id: req.params.id, userId }, // ensures only owner can update
+      { newStreet, newLandmark, newArea, newAddress, newPincode, newCity },
+      { new: true }
     );
+    if (!updated) return res.status(404).json({ message: "Address not found or unauthorized" });
     res.json(updated);
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
 });
 
-// ✅ DELETE Route
+
+// DELETE: Remove address (user-specific)
 app.delete('/api/address/:id', async (req, res) => {
+  const { userId } = req.body;
   try {
-    await Address.findByIdAndDelete(req.params.id);
+    const deleted = await Address.findOneAndDelete({ _id: req.params.id, userId });
+    if (!deleted) return res.status(404).json({ message: "Address not found or unauthorized" });
     res.json({ message: "Address deleted successfully" });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
 });
 
-// ✅ Start Server
-app.listen(5000, () => console.log('🚀 Server running on port 5000'));
+// ==================== CART ROUTES ====================
+
+// POST: Add item to cart or update quantity if exists
+app.post("/api/cart", async (req, res) => {
+  const { productId, title, price, image, quantity, userId } = req.body;
+  try {
+    let existingItem = await CartItem.findOne({ productId, userId });
+    if (existingItem) {
+      existingItem.quantity += quantity;
+      const updated = await existingItem.save();
+      return res.status(200).json(updated);
+    }
+    const cartItem = new CartItem({ productId, title, price, image, quantity, userId });
+    const saved = await cartItem.save();
+    res.status(201).json(saved);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// GET: Fetch cart items for a user
+app.get("/api/cart/:userId", async (req, res) => {
+  try {
+    const cartItems = await CartItem.find({ userId: req.params.userId });
+    res.json(cartItems);
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PUT: Update cart item quantity (user-specific)
+app.put("/api/cart/:id", async (req, res) => {
+  const { quantity, userId } = req.body;
+  try {
+    const updatedItem = await CartItem.findOneAndUpdate(
+      { _id: req.params.id, userId }, // ensure only owner can update
+      { quantity },
+      { new: true }
+    );
+    if (!updatedItem) return res.status(404).json({ message: "Cart item not found or unauthorized" });
+    res.json(updatedItem);
+  } catch (err) {
+    res.status(400).json({ message: err.message });
+  }
+});
+
+// DELETE: Remove item from cart (user-specific)
+app.delete("/api/cart/:id", async (req, res) => {
+  const { userId } = req.body;
+  try {
+    const deleted = await CartItem.findOneAndDelete({ _id: req.params.id, userId });
+    if (!deleted) return res.status(404).json({ message: "Cart item not found or unauthorized" });
+    res.json({ message: "Item removed from cart" });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// ==================== START SERVER ====================
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
